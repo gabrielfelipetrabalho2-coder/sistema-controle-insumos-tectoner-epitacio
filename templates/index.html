@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Insumos - Prefeitura</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="container mt-5">
+
+    <h2 class="mb-4">Controle de Papel e Toner</h2>
+
+    <!-- Mensagens de Alerta -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} fw-bold" role="alert">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Formulário de Lançamento -->
+    <form action="/registrar" method="POST" class="mb-5 border p-4 rounded bg-light">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="fw-bold">Local (Escola/Creche/Setor):</label>
+                <select name="local" class="form-select" required>
+                    {% for local in locais %}
+                    <option value="{{ local }}">{{ local }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="fw-bold">Total de Folhas Sulfite:</label>
+                <input type="number" name="folhas" class="form-control" required placeholder="Ex: 5000">
+                <small class="text-muted">Lembrete: 1 caixa = 5000 folhas</small>
+            </div>
+            <div class="col-md-4">
+                <label class="fw-bold">Quantidade de Toners:</label>
+                <input type="number" name="toners" class="form-control" required value="0">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Registrar Envio</button>
+    </form>
+
+    <!-- Tabela com Filtro de Cores -->
+    <h4>Histórico de Envios</h4>
+    <div class="mb-3 w-25">
+        <label class="fw-bold">Filtrar por Status:</label>
+        <select id="filtroCor" class="form-select" onchange="filtrarTabela()">
+            <option value="todos">Todos</option>
+            <option value="table-success">Verde (Abaixo da média)</option>
+            <option value="table-warning">Amarelo (Na média)</option>
+            <option value="table-danger">Vermelho (Acima da média)</option>
+        </select>
+    </div>
+
+    <table class="table table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>Local</th>
+                <th>Folhas Enviadas</th>
+                <th>Toners</th>
+                <th>Status do Consumo</th>
+            </tr>
+        </thead>
+        <tbody id="tabelaDados">
+            {% for item in historico %}
+            <tr class="table-{{ item.cor }}">
+                <td>{{ item.local }}</td>
+                <td>{{ item.folhas }}</td>
+                <td>{{ item.toners }}</td>
+                <td class="fw-bold">{{ item.status }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function filtrarTabela() {
+            var filtro = document.getElementById("filtroCor").value;
+            var linhas = document.getElementById("tabelaDados").getElementsByTagName("tr");
+
+            for (var i = 0; i < linhas.length; i++) {
+                if (filtro === "todos" || linhas[i].classList.contains(filtro)) {
+                    linhas[i].style.display = "";
+                } else {
+                    linhas[i].style.display = "none";
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
