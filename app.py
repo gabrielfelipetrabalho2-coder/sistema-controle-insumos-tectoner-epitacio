@@ -14,20 +14,20 @@ if not firebase_admin._apps:
 def index():
     locais_ref = db.reference('locais_prefeitura').get() or {}
     envios_ref = db.reference('envios').get() or {}
+    estoque_ref = db.reference('estoque').get() or {'folhas': 0, 'toners': 0}
     
-    # Agora passamos o ID, Nome e se a exclusão é permitida (locais manuais)
     lista_locais = []
     for key, val in locais_ref.items():
         lista_locais.append({
             'id': key,
             'nome': val.get('nome', ''),
-            'removivel': val.get('removivel', False) # Os da planilha serão False
+            'removivel': val.get('removivel', False)
         })
-    # Ordena alfabeticamente
     lista_locais = sorted(lista_locais, key=lambda x: x['nome'])
     
     historico_mes = []
     dados_grafico = {}
+    dados_grafico_toner = {} # NOVO: Para o gráfico de toners
     mes_atual = datetime.now().strftime('%m/%Y')
     
     for key, val in envios_ref.items():
@@ -43,6 +43,7 @@ def index():
                 
         if registro_mes == mes_atual:
             folhas = int(val.get('folhas', 0))
+            toners = int(val.get('toners', 0))
             media = int(val.get('media_aplicada', 5000))
             
             if folhas > media:
@@ -58,14 +59,19 @@ def index():
             historico_mes.append(val)
             
             local_nome = val['local']
+            # NOVO: Soma folhas e toners para os gráficos separadamente
             if local_nome in dados_grafico:
                 dados_grafico[local_nome] += folhas
+                dados_grafico_toner[local_nome] += toners
             else:
                 dados_grafico[local_nome] = folhas
+                dados_grafico_toner[local_nome] = toners
                 
     historico_mes.reverse()
     
-    return render_template('index.html', locais=lista_locais, historico=historico_mes, dados_grafico=dados_grafico, mes_atual=mes_atual)
+    return render_template('index.html', locais=lista_locais, historico=historico_mes, 
+                           dados_grafico=dados_grafico, dados_grafico_toner=dados_grafico_toner, 
+                           mes_atual=mes_atual, estoque=estoque_ref)
 
 @app.route('/registrar', methods=['POST'])
 def registrar():
@@ -85,10 +91,10 @@ def registrar():
     
     if data_input:
         data_obj = datetime.strptime(data_input, '%Y-%m-%d')
-        dia_escolhido = data_obj.strftime('%d/%m')
+        dia_escolhido = data_obj.strftime('%d/%m/%Y')
         mes_ref_registro = data_obj.strftime('%m/%Y')
     else:
-        dia_escolhido = datetime.now().strftime('%d/%m')
+        dia_escolhido = datetime.now().strftime('%d/%m/%Y')
         mes_ref_registro = datetime.now().strftime('%m/%Y')
     
     envios_ref = db.reference('envios')
@@ -114,6 +120,12 @@ def registrar():
         else:
             media_final = 5000
             
+    estoque_ref = db.reference('estoque')
+    estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+    novo_total_folhas = max(0, int(estoque_atual.get('folhas', 0)) - folhas)
+    novo_total_toners = max(0, int(estoque_atual.get('toners', 0)) - toners)
+    estoque_ref.update({'folhas': novo_total_folhas, 'toners': novo_total_toners})
+            
     if registro_existente_id:
         folhas_antigas = int(registro_existente_dados.get('folhas', 0))
         toners_antigos = int(registro_existente_dados.get('toners', 0))
@@ -127,7 +139,7 @@ def registrar():
             'media_aplicada': media_final,
             'data': nova_data
         })
-        flash(f'Sucesso: Entrega do dia {dia_escolhido} somada para "{local}".', 'success')
+        flash(f'Sucesso: Entrega registrada! Estoque atualizado automaticamente.', 'success')
     else:
         envios_ref.push({
             'local': local,
@@ -137,8 +149,59 @@ def registrar():
             'data': dia_escolhido,
             'mes_ref': mes_ref_registro
         })
-        flash(f'Sucesso: Primeira entrega do mês iniciada para "{local}".', 'success')
+        flash(f'Sucesso: Primeira entrega do mês registrada e deduzida do estoque.', 'success')
         
+    return redirect('/')
+
+@app.route('/adicionar_estoque', methods=['POST'])
+def adicionar_estoque():
+    tipo = request.form.get('tipo_material')
+    quantidade = int(request.form.get('quantidade_material', 0))
+    
+    if quantidade <= 0:
+        flash('Erro: A quantidade deve ser maior que zero.', 'danger')
+        return redirect('/')
+        
+    estoque_ref = db.reference('estoque')
+    estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+    
+    if tipo == 'caixa_papel':
+        add = quantidade * 5000
+        estoque_ref.update({'folhas': int(estoque_atual.get('folhas', 0)) + add})
+        flash(f'Estoque atualizado: +{quantidade} Caixa(s) de Papel (+{add} folhas).', 'success')
+        
+    elif tipo == 'resma_papel':
+        add = quantidade * 500
+        estoque_ref.update({'folhas': int(estoque_atual.get('folhas', 0)) + add})
+        flash(f'Estoque atualizado: +{quantidade} Resma(s) (+{add} folhas).', 'success')
+        
+    elif tipo == 'caixa_toner':
+        add = quantidade * 8
+        estoque_ref.update({'toners': int(estoque_atual.get('toners', 0)) + add})
+        flash(f'Estoque atualizado: +{quantidade} Caixa(s) de Toner (+{add} toners).', 'success')
+        
+    elif tipo == 'unidade_toner':
+        estoque_ref.update({'toners': int(estoque_atual.get('toners', 0)) + quantidade})
+        flash(f'Estoque atualizado: +{quantidade} Toner(s) avulsos.', 'success')
+        
+    return redirect('/')
+
+@app.route('/editar_estoque', methods=['POST'])
+def editar_estoque():
+    folhas_corretas = int(request.form.get('folhas_corretas', 0))
+    toners_corretos = int(request.form.get('toners_corretos', 0))
+    
+    if folhas_corretas < 0 or toners_corretos < 0:
+        flash('Erro: O estoque não pode ficar negativo.', 'danger')
+        return redirect('/')
+        
+    estoque_ref = db.reference('estoque')
+    estoque_ref.update({
+        'folhas': folhas_corretas,
+        'toners': toners_corretos
+    })
+    
+    flash('Sucesso: Os valores totais do estoque foram corrigidos!', 'success')
     return redirect('/')
 
 @app.route('/deletar/<id>')
@@ -183,14 +246,12 @@ def novo_local():
         db.reference('locais_prefeitura').push({
             'nome': nome_local,
             'media_folhas': 5000,
-            'removivel': True # A ETIQUETA INVISÍVEL!
+            'removivel': True
         })
-        flash(f'Sucesso: O novo local "{nome_local}" foi cadastrado no sistema!', 'success')
+        flash(f'Sucesso: O novo local "{nome_local}" foi cadastrado!', 'success')
         return redirect('/')
-        
     return render_template('novo_local.html')
 
-# NOVA ROTA: DELETAR LOCAL MANUAL
 @app.route('/deletar_local/<id>')
 def deletar_local(id):
     db.reference('locais_prefeitura').child(id).delete()
