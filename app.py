@@ -27,7 +27,7 @@ def index():
     
     historico_mes = []
     dados_grafico = {}
-    dados_grafico_toner = {} # NOVO: Para o gráfico de toners
+    dados_grafico_toner = {}
     mes_atual = datetime.now().strftime('%m/%Y')
     
     for key, val in envios_ref.items():
@@ -59,7 +59,6 @@ def index():
             historico_mes.append(val)
             
             local_nome = val['local']
-            # NOVO: Soma folhas e toners para os gráficos separadamente
             if local_nome in dados_grafico:
                 dados_grafico[local_nome] += folhas
                 dados_grafico_toner[local_nome] += toners
@@ -88,6 +87,21 @@ def registrar():
     if folhas == 0 and toners == 0:
         flash('Erro: Você deve registrar o envio de pelo menos 1 Folha OU 1 Toner.', 'danger')
         return redirect('/')
+
+    # -------------- TRAVA NO CADASTRO --------------
+    estoque_ref = db.reference('estoque')
+    estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+    qtd_estoque_folhas = int(estoque_atual.get('folhas', 0))
+    qtd_estoque_toners = int(estoque_atual.get('toners', 0))
+    
+    if folhas > qtd_estoque_folhas:
+        flash(f'Bloqueado no Cadastro: Estoque insuficiente! Você tentou enviar {folhas} folhas, mas só há {qtd_estoque_folhas} no estoque.', 'danger')
+        return redirect('/')
+        
+    if toners > qtd_estoque_toners:
+        flash(f'Bloqueado no Cadastro: Estoque insuficiente! Você tentou enviar {toners} toners, mas só há {qtd_estoque_toners} no estoque.', 'danger')
+        return redirect('/')
+    # -----------------------------------------------
     
     if data_input:
         data_obj = datetime.strptime(data_input, '%Y-%m-%d')
@@ -120,10 +134,8 @@ def registrar():
         else:
             media_final = 5000
             
-    estoque_ref = db.reference('estoque')
-    estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
-    novo_total_folhas = max(0, int(estoque_atual.get('folhas', 0)) - folhas)
-    novo_total_toners = max(0, int(estoque_atual.get('toners', 0)) - toners)
+    novo_total_folhas = qtd_estoque_folhas - folhas
+    novo_total_toners = qtd_estoque_toners - toners
     estoque_ref.update({'folhas': novo_total_folhas, 'toners': novo_total_toners})
             
     if registro_existente_id:
@@ -206,35 +218,91 @@ def editar_estoque():
 
 @app.route('/deletar/<id>')
 def deletar(id):
+    registro_antigo = db.reference('envios').child(id).get()
+    if registro_antigo:
+        folhas_antigas = int(registro_antigo.get('folhas', 0))
+        toners_antigos = int(registro_antigo.get('toners', 0))
+        
+        estoque_ref = db.reference('estoque')
+        estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+        
+        estoque_ref.update({
+            'folhas': int(estoque_atual.get('folhas', 0)) + folhas_antigas,
+            'toners': int(estoque_atual.get('toners', 0)) + toners_antigos
+        })
+
     db.reference('envios').child(id).delete()
-    flash('Registro mensal deletado com sucesso!', 'success')
+    flash('Registro deletado e insumos devolvidos ao estoque principal!', 'success')
     return redirect('/')
 
 @app.route('/editar/<id>', methods=['GET', 'POST'])
 def editar(id):
     if request.method == 'POST':
         media = int(request.form.get('media', 5000))
-        folhas = int(request.form.get('folhas', 0))
-        toners = int(request.form.get('toners', 0))
+        novas_folhas = int(request.form.get('folhas', 0))
+        novos_toners = int(request.form.get('toners', 0))
         datas_editadas = request.form.get('datas_historico', '')
         
-        if folhas < 0 or toners < 0 or media <= 0:
+        if novas_folhas < 0 or novos_toners < 0 or media <= 0:
             flash('Erro: Valores inválidos!', 'danger')
             return redirect(f'/editar/{id}')
             
+        if novas_folhas == 0 and novos_toners == 0:
+            flash('Erro: Não é permitido zerar folhas e toners ao mesmo tempo. Se a entrega foi cancelada, use o botão "Deletar" na tela inicial.', 'danger')
+            return redirect(f'/editar/{id}')
+            
+        registro_antigo = db.reference('envios').child(id).get()
+        if not registro_antigo:
+            flash('Erro crítico: O registro não foi encontrado.', 'danger')
+            return redirect('/')
+            
+        folhas_antigas = int(registro_antigo.get('folhas', 0))
+        toners_antigos = int(registro_antigo.get('toners', 0))
+        
+        estoque_ref = db.reference('estoque')
+        estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+        qtd_estoque_folhas = int(estoque_atual.get('folhas', 0))
+        qtd_estoque_toners = int(estoque_atual.get('toners', 0))
+        
+        # -------------- TRAVA ABSOLUTA NO EDITAR --------------
+        diferenca_folhas = novas_folhas - folhas_antigas
+        diferenca_toners = novos_toners - toners_antigos
+        
+        if diferenca_folhas > qtd_estoque_folhas:
+            flash(f'Bloqueado na Edição: Faltam {diferenca_folhas - qtd_estoque_folhas} folhas no estoque central para você conseguir salvar essa quantidade!', 'danger')
+            return redirect(f'/editar/{id}')
+            
+        if diferenca_toners > qtd_estoque_toners:
+            flash(f'Bloqueado na Edição: Faltam {diferenca_toners - qtd_estoque_toners} toners no estoque central para você conseguir salvar essa quantidade!', 'danger')
+            return redirect(f'/editar/{id}')
+        # -----------------------------------------------------
+        
+        # SÓ PASSA PARA CÁ SE TIVER ESTOQUE SUFICIENTE!
+        novo_estoque_folhas = qtd_estoque_folhas - diferenca_folhas
+        novo_estoque_toners = qtd_estoque_toners - diferenca_toners
+        
+        # 1. Atualiza o estoque descontando (ou devolvendo)
+        estoque_ref.update({
+            'folhas': novo_estoque_folhas,
+            'toners': novo_estoque_toners
+        })
+        
+        # 2. Só agora salva os dados modificados na tabela
         db.reference('envios').child(id).update({
             'media_aplicada': media,
-            'folhas': folhas,
-            'toners': toners,
+            'folhas': novas_folhas,
+            'toners': novos_toners,
             'data': datas_editadas
         })
-        flash('Totais do mês corrigidos com sucesso!', 'success')
+        
+        flash('Registro corrigido e diferença abatida/devolvida no estoque com sucesso!', 'success')
         return redirect('/')
         
     else:
-        registro = db.reference('envios').child(id).get()
-        return render_template('editar.html', registro=registro, id=id)
-
+            registro = db.reference('envios').child(id).get()
+            estoque_atual = db.reference('estoque').get() or {'folhas': 0, 'toners': 0}
+            return render_template('editar.html', registro=registro, id=id, estoque=estoque_atual)
+        
 @app.route('/novo_local', methods=['GET', 'POST'])
 def novo_local():
     if request.method == 'POST':
