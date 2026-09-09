@@ -10,15 +10,16 @@
 
 <body class="container mt-5 mb-5">
 
-    <h2 class="mb-4">Controle de Papel e Toner</h2>
+    <h2 class="mb-4">Controle de Insumos - Referência: <span class="text-primary">{{ mes_atual }}</span></h2>
 
-    <!-- Menu Informativo / Guia de Conversão -->
     <div class="alert alert-info border-info shadow-sm mb-4" role="alert">
-        <h5 class="alert-heading fw-bold mb-2">💡 Guia Rápido de Medidas</h5>
+        <h5 class="alert-heading fw-bold mb-2">💡 Guia Rápido de Medidas & Regras</h5>
         <hr class="mt-1 mb-2 border-info">
         <ul class="mb-0">
             <li><strong>1 Bloco de Resma</strong> = 500 folhas sulfites</li>
             <li><strong>1 Caixa Completa</strong> = 10 blocos de resmas (Total: <strong>5.000 folhas</strong>)</li>
+            <li class="mt-2 text-dark"><strong>Fechamento Mensal:</strong> Entregas feitas para o mesmo setor no mês
+                serão somadas na mesma linha.</li>
         </ul>
     </div>
 
@@ -35,39 +36,45 @@
     <form action="/registrar" method="POST" class="mb-5 border p-4 rounded bg-light">
         <div class="row">
             <div class="col-md-3">
-                <label class="fw-bold">Local (Escola/Creche):</label>
+                <label class="fw-bold">Local:</label>
                 <select name="local" class="form-select" required>
                     {% for local in locais %}
                     <option value="{{ local }}">{{ local }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="fw-bold">Média do Local (Folhas):</label>
-                <input type="number" name="media" class="form-control" required placeholder="Ex: 5000" min="1">
+            <div class="col-md-2">
+                <label class="fw-bold">Data da Entrega:</label>
+                <input type="date" name="data" id="dataInput" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="fw-bold">Média (Opcional):</label>
+                <!-- Removido o required. Se vazio, pega a atual do banco -->
+                <input type="number" name="media" class="form-control" placeholder="Puxa a atual" min="1">
             </div>
             <div class="col-md-3">
-                <label class="fw-bold">Folhas Enviadas:</label>
-                <input type="number" name="folhas" class="form-control" required placeholder="Ex: 5000" min="1">
+                <label class="fw-bold">Folhas (Apenas hoje):</label>
+                <!-- step="500" aumenta/diminui de 500 em 500 na setinha, mas permite digitar manual -->
+                <input type="number" name="folhas" class="form-control" required value="0" min="0" step="500">
             </div>
-            <div class="col-md-3">
-                <label class="fw-bold">Quantidade de Toners:</label>
-                <input type="number" name="toners" class="form-control" required placeholder="Ex: 1" min="1">
+            <div class="col-md-2">
+                <label class="fw-bold">Toners:</label>
+                <input type="number" name="toners" class="form-control" required value="0" min="0">
             </div>
         </div>
-        <button type="submit" class="btn btn-primary mt-3">Registrar Envio</button>
+        <button type="submit" class="btn btn-primary mt-3">Registrar Entrega</button>
     </form>
 
     <div class="row mb-5">
         <div class="col-md-12">
-            <h4 class="mb-3">Gráfico Geral de Consumo (Folhas)</h4>
+            <h4 class="mb-3">Gráfico Consolidado de Consumo - {{ mes_atual }}</h4>
             <div class="border p-3 rounded" style="background-color: white;">
                 <canvas id="graficoConsumo" height="80"></canvas>
             </div>
         </div>
     </div>
 
-    <h4>Histórico de Envios</h4>
+    <h4>Totalizações de {{ mes_atual }}</h4>
     <div class="mb-3 w-25">
         <label class="fw-bold">Filtrar por Status:</label>
         <select id="filtroCor" class="form-select" onchange="filtrarTabela()">
@@ -81,11 +88,11 @@
     <table class="table table-bordered">
         <thead class="table-dark">
             <tr>
-                <th>Data</th>
+                <th>Dias das Entregas</th>
                 <th>Local</th>
-                <th>Média Base</th>
-                <th>Folhas Enviadas</th>
-                <th>Toners</th>
+                <th>Média Mensal</th>
+                <th>Soma de Folhas</th>
+                <th>Soma de Toners</th>
                 <th>Status</th>
                 <th>Ações</th>
             </tr>
@@ -96,13 +103,13 @@
                 <td>{{ item.data }}</td>
                 <td>{{ item.local }}</td>
                 <td class="fw-bold text-secondary">{{ item.media_aplicada }}</td>
-                <td>{{ item.folhas }}</td>
-                <td>{{ item.toners }}</td>
+                <td class="fw-bold">{{ item.folhas }}</td>
+                <td class="fw-bold">{{ item.toners }}</td>
                 <td class="fw-bold">{{ item.status }}</td>
                 <td>
                     <a href="/editar/{{ item.id }}" class="btn btn-sm btn-primary">Editar</a>
                     <a href="/deletar/{{ item.id }}" class="btn btn-sm btn-danger"
-                        onclick="return confirm('Tem certeza que deseja apagar esse registro?')">Deletar</a>
+                        onclick="return confirm('Apagar o histórico MENSAL inteiro deste local?')">Deletar</a>
                 </td>
             </tr>
             {% endfor %}
@@ -110,6 +117,9 @@
     </table>
 
     <script>
+        // Preenche o campo de Data com a data de hoje automaticamente
+        document.getElementById('dataInput').valueAsDate = new Date();
+
         function filtrarTabela() {
             var filtro = document.getElementById("filtroCor").value;
             var linhas = document.getElementById("tabelaDados").getElementsByTagName("tr");
@@ -131,7 +141,7 @@
             data: {
                 labels: Object.keys(dados),
                 datasets: [{
-                    label: 'Soma total de folhas enviadas',
+                    label: 'Soma total de folhas no mês',
                     data: Object.values(dados),
                     backgroundColor: 'rgba(54, 162, 235, 0.6)',
                     borderColor: 'rgba(54, 162, 235, 1)',
