@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block titulo_pagina %}Editar Estrutura{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>✏️ Editar Estrutura de Produto</h4>
+            <a href="/produtos" class="btn btn-secondary btn-sm fw-bold">⬅️ Cancelar</a>
+        </div>
+
+        <div class="card shadow-sm border-warning">
+            <div class="card-header bg-warning text-dark fw-bold">
+                Atenção ao alterar Nomes e Tipos
+            </div>
+            <div class="card-body bg-light">
+                <form action="/produtos/editar/{{ id }}" method="POST">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome do Produto/Categoria</label>
+                        <input type="text" name="nome_categoria" class="form-control" value="{{ estrutura.nome }}"
+                            required>
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="mostrar_dashboard" id="chkDashboard" {% if
+                            estrutura.mostrar_dashboard %}checked{% endif %}>
+                        <label class="form-check-label fw-bold text-success" for="chkDashboard">
+                            Fixar este produto na tabela "Modelos Disponíveis" do Dashboard
+                        </label>
+                    </div>
+
+                    <h6 class="fw-bold text-secondary border-bottom pb-2">Estrutura de Colunas Atual</h6>
+                    <div id="atributos-container">
+                        {% for attr in estrutura.atributos %}
+                        <div class="row g-2 mb-2 atributo-row">
+                            <!-- Guarda o nome original escondido para não perder os dados se vc renomear a coluna -->
+                            <input type="hidden" name="coluna_original[]" value="{{ attr.nome }}">
+
+                            <div class="col-md-5">
+                                <input type="text" name="coluna_nome[]" class="form-control form-control-sm"
+                                    value="{{ attr.nome }}" required>
+                            </div>
+                            <div class="col-md-5">
+                                <select name="coluna_tipo[]" class="form-select form-select-sm">
+                                    <option value="text" {% if attr.tipo=='text' %}selected{% endif %}>Texto (String)
+                                    </option>
+                                    <option value="number" {% if attr.tipo=='number' %}selected{% endif %}>Número
+                                        (Int/Float)</option>
+                                    <option value="date" {% if attr.tipo=='date' %}selected{% endif %}>Data (Date)
+                                    </option>
+                                    <option value="checkbox" {% if attr.tipo=='checkbox' %}selected{% endif %}>Caixa de
+                                        Seleção (Boolean)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-sm btn-danger w-100 remover-atributo">🗑️</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" class="btn btn-sm btn-outline-success fw-bold mb-4 mt-2"
+                        id="btn-add-atributo">+ Adicionar Nova Coluna</button>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold fs-5 shadow-sm">Salvar
+                        Alterações</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('btn-add-atributo').addEventListener('click', function () {
+        const container = document.getElementById('atributos-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'row g-2 mb-2 atributo-row';
+        newRow.innerHTML = `
+        <input type="hidden" name="coluna_original[]" value="">
+        <div class="col-md-5"><input type="text" name="coluna_nome[]" class="form-control form-control-sm" placeholder="Novo Nome" required></div>
+        <div class="col-md-5">
+            <select name="coluna_tipo[]" class="form-select form-select-sm">
+                <option value="text">Texto (String)</option>
+                <option value="number">Número (Int/Float)</option>
+                <option value="date">Data (Date)</option>
+                <option value="checkbox">Caixa de Seleção (Boolean)</option>
+            </select>
+        </div>
+        <div class="col-md-2"><button type="button" class="btn btn-sm btn-danger w-100 remover-atributo">🗑️</button></div>
+    `;
+        container.appendChild(newRow);
+    });
+
+    document.getElementById('atributos-container').addEventListener('click', function (e) {
+        if (e.target.classList.contains('remover-atributo') || e.target.parentElement.classList.contains('remover-atributo')) {
+            e.target.closest('.atributo-row').remove();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block titulo_pagina %}{{ estrutura.nome }}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} fw-bold" role="alert">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>📦 Gestão de {{ estrutura.nome }}</h4>
+</div>
+
+<div class="row">
+    <!-- Formulário de Cadastro do Item -->
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white fw-bold">
+                Adicionar ao Estoque
+            </div>
+            <div class="card-body bg-light">
+                <form action="/modulo/{{ estrutura_id }}/novo_item" method="POST">
+                    {% for attr in estrutura.atributos %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary" style="text-transform: capitalize;">{{
+                            attr.nome }}</label>
+
+                        {% if attr.tipo == 'text' %}
+                        <input type="text" name="{{ attr.nome }}" class="form-control form-control-sm" required>
+                        {% elif attr.tipo == 'number' %}
+                        <input type="number" name="{{ attr.nome }}" class="form-control form-control-sm" required>
+                        {% elif attr.tipo == 'date' %}
+                        <input type="date" name="{{ attr.nome }}" class="form-control form-control-sm" required>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Salvar Item</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Dinâmica com os Itens Cadastrados -->
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold">
+                Itens Cadastrados
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover table-striped mb-0 text-center">
+                    <thead class="table-light">
+                        <tr>
+                            {% for attr in estrutura.atributos %}
+                            <th style="text-transform: capitalize;">{{ attr.nome }}</th>
+                            {% endfor %}
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in itens %}
+                        <tr>
+                            {% for attr in estrutura.atributos %}
+                            <td class="align-middle fw-bold {% if attr.tipo == 'number' %}text-primary{% endif %}">
+                                {{ item.get(attr.nome, '-') }}
+                            </td>
+                            {% endfor %}
+                            <td class="align-middle text-nowrap">
+                                <!-- Botão Editar -->
+                                <button class="btn btn-sm btn-secondary me-1" data-bs-toggle="modal"
+                                    data-bs-target="#modalEditar{{ item.id }}">✏️</button>
+                                <!-- Botão Deletar -->
+                                <a href="/modulo/{{ estrutura_id }}/deletar/{{ item.id }}"
+                                    class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Remover item permanentemente?');">🗑️</a>
+                            </td>
+                        </tr>
+
+                        <!-- Modal de Edição exclusivo para este item -->
+                        <div class="modal fade" id="modalEditar{{ item.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title fw-bold text-dark">✏️ Editar Item</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                            aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body text-start">
+                                        <form action="/modulo/{{ estrutura_id }}/editar_item/{{ item.id }}"
+                                            method="POST">
+                                            {% for attr in estrutura.atributos %}
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold small text-secondary"
+                                                    style="text-transform: capitalize;">{{ attr.nome }}</label>
+
+                                                {% if attr.tipo == 'text' %}
+                                                <input type="text" name="{{ attr.nome }}"
+                                                    class="form-control form-control-sm"
+                                                    value="{{ item.get(attr.nome, '') }}" required>
+                                                {% elif attr.tipo == 'number' %}
+                                                <input type="number" name="{{ attr.nome }}"
+                                                    class="form-control form-control-sm"
+                                                    value="{{ item.get(attr.nome, '') }}" required>
+                                                {% elif attr.tipo == 'date' %}
+                                                <input type="date" name="{{ attr.nome }}"
+                                                    class="form-control form-control-sm"
+                                                    value="{{ item.get(attr.nome, '') }}" required>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                            <button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Salvar
+                                                Alterações</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Fim do Modal -->
+
+                        {% else %}
+                        <tr>
+                            <td colspan="100%" class="text-center text-muted py-4">Nenhum registro encontrado.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

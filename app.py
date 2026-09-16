@@ -1,6 +1,6 @@
 from flask import Flask
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, db
 
 # Importando os módulos separados (Blueprints)
 from routes.envios import envios_bp
@@ -15,6 +15,17 @@ cred = credentials.Certificate("firebase-key.json")
 if not firebase_admin._apps:
     firebase_admin.initialize_app(
         cred, {'databaseURL': 'https://scitectoner-default-rtdb.firebaseio.com/'})
+
+# --- NOVA MÁGICA: Injeta os módulos no Menu Lateral ---
+@app.context_processor
+def inject_modulos():
+    try:
+        estruturas = db.reference('estruturas_dinamicas').get() or {}
+        lista = [{'id': k, 'nome': v.get('nome')} for k, v in estruturas.items()]
+        return dict(modulos_dinamicos=sorted(lista, key=lambda x: x['nome']))
+    except Exception:
+        return dict(modulos_dinamicos=[])
+# ------------------------------------------------------
 
 # Registra os módulos no aplicativo principal
 app.register_blueprint(envios_bp)

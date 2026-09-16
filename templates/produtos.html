@@ -1,150 +1,68 @@
 {% extends 'base.html' %}
-
-{% block titulo_pagina %}Gestão de Produtos Dinâmicos{% endblock %}
+{% block titulo_pagina %}Produtos e Estruturas Dinâmicas{% endblock %}
 
 {% block content %}
-
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 {% for category, message in messages %}
-<div class="alert alert-{{ category }} fw-bold" role="alert">
-    {{ message }}
-</div>
+<div class="alert alert-{{ category }} fw-bold" role="alert">{{ message }}</div>
 {% endfor %}
 {% endif %}
 {% endwith %}
 
-<div class="row mb-4">
-    <div class="col-md-5">
-        <div class="card shadow-sm border-primary">
-            <div class="card-header bg-primary text-white fw-bold">
-                ➕ Criar Novo Produto / Categoria
-            </div>
-            <div class="card-body bg-light">
-                <form action="/produtos/nova" method="POST">
-                    <div class="mb-3">
-                        <label class="fw-bold text-secondary">Nome do Produto/Categoria</label>
-                        <input type="text" name="nome_categoria" class="form-control"
-                            placeholder="Ex: Fusor Ricoh, Refil Magenta..." required>
-                    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>📋 Gestão de Produtos Dinâmicos</h4>
+    <a href="/produtos/cadastro" class="btn btn-primary fw-bold shadow-sm">
+        ➕ Criar Novo Produto / Categoria
+    </a>
+</div>
 
-                    <hr>
-                    <label class="fw-bold text-secondary mb-2">Estrutura de Colunas (Atributos)</label>
-
-                    <!-- Container onde os novos atributos vão aparecer -->
-                    <div id="atributos-container">
-                        <div class="row mb-2 atributo-row">
-                            <div class="col-6">
-                                <input type="text" name="coluna_nome[]" class="form-control form-control-sm"
-                                    placeholder="Nome (Ex: Data)" required>
-                            </div>
-                            <div class="col-5">
-                                <select name="coluna_tipo[]" class="form-select form-select-sm" required>
-                                    <option value="text">Texto (String)</option>
-                                    <option value="date">Data</option>
-                                    <option value="number">Número</option>
-                                    <option value="checkbox">Sim/Não</option>
-                                </select>
-                            </div>
-                            <div class="col-1 d-flex align-items-center">
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-attr border-0"
-                                    disabled><i class="fa-solid fa-trash"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Botão de adicionar mais colunas -->
-                    <button type="button" class="btn btn-sm btn-outline-success mb-4 fw-bold" id="btn-add-attr">
-                        <i class="fa-solid fa-plus"></i> Adicionar Coluna
-                    </button>
-
-                    <button type="submit" class="btn btn-primary w-100 fw-bold">Cadastrar Estrutura do Produto</button>
-                </form>
-            </div>
-        </div>
+<div class="card shadow-sm border-dark">
+    <div class="card-header bg-dark text-white fw-bold">
+        Estruturas Cadastradas no ERP
     </div>
-
-    <div class="col-md-7">
-        <div class="card shadow-sm">
-            <div class="card-header bg-dark text-white fw-bold">
-                📋 Estruturas Cadastradas
-            </div>
-            <div class="card-body p-0 table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-secondary">
-                        <tr>
-                            <th>Produto/Categoria</th>
-                            <th>Colunas Definidas</th>
-                            <th class="text-center">Estoque</th>
-                            <th class="text-center">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cat in categorias %}
-                        <tr>
-                            <td class="fw-bold align-middle text-primary">{{ cat.nome }}</td>
-                            <td class="align-middle small text-muted">
-                                <ul class="mb-0 ps-3">
-                                    {% for attr in cat.atributos %}
-                                    <li>{{ attr.nome }} <i>({{ attr.tipo }})</i></li>
-                                    {% endfor %}
-                                </ul>
-                            </td>
-                            <td class="text-center align-middle fw-bold fs-5">{{ cat.estoque_total }}</td>
-                            <td class="text-center align-middle">
-                                <a href="/produtos/deletar/{{ cat.id }}" class="btn btn-sm btn-outline-danger ms-1"
-                                    onclick="return confirm('Deseja realmente apagar a categoria {{ cat.nome }}?');"
-                                    title="Remover">
-                                    <i class="fa-solid fa-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-hover table-striped mb-0 text-center">
+            <thead class="table-light">
+                <tr>
+                    <th>Produto/Categoria</th>
+                    <th>No Dashboard?</th>
+                    <th>Colunas (Estrutura)</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in categorias %}
+                <tr>
+                    <td class="align-middle fw-bold text-primary">{{ cat.nome }}</td>
+                    <td class="align-middle">
+                        {% if cat.mostrar_dashboard %}
+                        <span class="badge bg-success">Sim</span>
                         {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">Nenhuma estrutura cadastrada ainda.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                        <span class="badge bg-secondary">Não</span>
+                        {% endif %}
+                    </td>
+                    <td class="align-middle text-start small text-muted">
+                        <ul class="mb-0 ps-3">
+                            {% for attr in cat.atributos %}
+                            <li><strong>{{ attr.nome }}</strong> ({{ attr.tipo }})</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td class="align-middle">
+                        <!-- AQUI ESTÁ O BOTÃO CORRIGIDO! Ele agora aponta para a tela nova -->
+                        <a href="/produtos/editar/{{ cat.id }}" class="btn btn-sm btn-secondary">✏️ Editar</a>
+                        <a href="/produtos/deletar/{{ cat.id }}" class="btn btn-sm btn-outline-danger"
+                            onclick="return confirm('Deseja mesmo apagar este produto do sistema?');">🗑️ Deletar</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">Nenhum produto cadastrado ainda.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-    document.getElementById('btn-add-attr').addEventListener('click', function () {
-        // Pega o container
-        const container = document.getElementById('atributos-container');
-
-        // Cria a nova linha HTML
-        const novaLinha = document.createElement('div');
-        novaLinha.className = 'row mb-2 atributo-row';
-        novaLinha.innerHTML = `
-            <div class="col-6">
-                <input type="text" name="coluna_nome[]" class="form-control form-control-sm" placeholder="Nome (Ex: Patrimônio)" required>
-            </div>
-            <div class="col-5">
-                <select name="coluna_tipo[]" class="form-select form-select-sm" required>
-                    <option value="text">Texto (String)</option>
-                    <option value="date">Data</option>
-                    <option value="number">Número</option>
-                    <option value="checkbox">Sim/Não</option>
-                </select>
-            </div>
-            <div class="col-1 d-flex align-items-center">
-                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-attr border-0"><i class="fa-solid fa-trash"></i></button>
-            </div>
-        `;
-
-        // Adiciona a função de remover a linha ao botão da lixeira
-        novaLinha.querySelector('.btn-remove-attr').addEventListener('click', function () {
-            novaLinha.remove();
-        });
-
-        // Adiciona a linha ao container
-        container.appendChild(novaLinha);
-    });
-</script>
 {% endblock %}
