@@ -18,31 +18,66 @@ def index():
     dados_grafico_toner = {}
     mes_atual = datetime.now().strftime('%m/%Y')
     
+    # --- OPÇÃO 1: Calcula os TOTAIS EXATOS POR LOCAL ---
+    totais_folhas = {}
+    totais_produtos = {}
+    medias_locais = {}
+    
+    for key, val in envios_ref.items():
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_atual)
+        if registro_mes == mes_atual:
+            local_nome = val.get('local')
+            totais_folhas[local_nome] = totais_folhas.get(local_nome, 0) + int(val.get('folhas', 0))
+            totais_produtos[local_nome] = totais_produtos.get(local_nome, 0) + int(val.get('toners', 0))
+            medias_locais[local_nome] = int(val.get('media_aplicada', 5000))
+            
+    # Cria a lista de resumo para o HTML
+    resumo_locais = []
+    for loc, t_folhas in totais_folhas.items():
+        media = medias_locais.get(loc, 5000)
+        if t_folhas > media:
+            cor, status = 'danger', 'Acima da Média'
+        elif t_folhas == media:
+            cor, status = 'warning', 'Na Média'
+        else:
+            cor, status = 'success', 'Abaixo da Média'
+            
+        resumo_locais.append({
+            'local': loc,
+            'total_folhas': t_folhas,
+            'total_produtos': totais_produtos.get(loc, 0),
+            'media': media,
+            'cor': cor,
+            'status': status
+        })
+    resumo_locais = sorted(resumo_locais, key=lambda x: x['local'])
+    
+    # Constrói a tabela Extrato
     for key, val in envios_ref.items():
         val['id'] = key
         registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_atual)
                 
         if registro_mes == mes_atual:
+            local_nome = val.get('local')
             folhas = int(val.get('folhas', 0))
             toners = int(val.get('toners', 0))
             media = int(val.get('media_aplicada', 5000))
             
-            if folhas > media:
+            total_acumulado_local = totais_folhas.get(local_nome, 0)
+            
+            if total_acumulado_local > media:
                 val['cor'], val['status'] = 'danger', 'Acima da Média'
-            elif folhas == media:
+            elif total_acumulado_local == media:
                 val['cor'], val['status'] = 'warning', 'Na Média'
             else:
                 val['cor'], val['status'] = 'success', 'Abaixo da Média'
                 
             historico_mes.append(val)
-            
-            local_nome = val['local']
             dados_grafico[local_nome] = dados_grafico.get(local_nome, 0) + folhas
             dados_grafico_toner[local_nome] = dados_grafico_toner.get(local_nome, 0) + toners
                 
     historico_mes.reverse()
     
-    # --- LEITURA DINÂMICA DO NOVO ERP ---
     estruturas_ref = db.reference('estruturas_dinamicas').get() or {}
     lista_produtos = []
     
@@ -52,7 +87,6 @@ def index():
             for item_id, item_data in itens_ref.items():
                 nome_parts = []
                 quantidade = 0
-                # O sistema varre as colunas que você inventou para montar a lista
                 for attr in est_data.get('atributos', []):
                     val = item_data.get(attr['nome'], '')
                     if attr['tipo'] == 'text' and val:
@@ -64,9 +98,8 @@ def index():
                             quantidade = 0
                 
                 nome_final = " - ".join(nome_parts) if nome_parts else f"Item {item_id[-4:]}"
-                
                 lista_produtos.append({
-                    'id': f"{est_id}|{item_id}", # Código composto para o sistema achar o item depois
+                    'id': f"{est_id}|{item_id}",
                     'nome': f"[{est_data.get('nome')}] {nome_final}",
                     'estoque': quantidade
                 })
@@ -75,7 +108,8 @@ def index():
     
     return render_template('index.html', locais=lista_locais, historico=historico_mes, 
                            dados_grafico=dados_grafico, dados_grafico_toner=dados_grafico_toner, 
-                           mes_atual=mes_atual, estoque=estoque_ref, produtos=lista_produtos)
+                           mes_atual=mes_atual, estoque=estoque_ref, produtos=lista_produtos,
+                           resumo_locais=resumo_locais)
 
 @envios_bp.route('/registrar', methods=['POST'])
 def registrar():
@@ -83,7 +117,7 @@ def registrar():
     media_input = request.form.get('media')
     folhas = int(request.form.get('folhas', 0))
     toners = int(request.form.get('toners', 0))
-    produto_composto = request.form.get('produto_id') # Recebe "estrutura_id|item_id"
+    produto_composto = request.form.get('produto_id')
     data_input = request.form.get('data')
     
     if folhas < 0 or toners < 0:
@@ -93,16 +127,17 @@ def registrar():
         flash('Erro: Você deve registrar o envio de material.', 'danger')
         return redirect('/')
 
-    # Valida Papel
     estoque_ref = db.reference('estoque')
     estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
     qtd_estoque_folhas = int(estoque_atual.get('folhas', 0))
+    
     if folhas > qtd_estoque_folhas:
         flash(f'Bloqueado: Você tentou enviar {folhas} folhas, mas só há {qtd_estoque_folhas} no estoque.', 'danger')
         return redirect('/')
         
-    # Valida e Desconta o Produto Dinâmico
     produto_nome_historico = ""
+    novo_detalhe = ""
+    
     if produto_composto and toners > 0:
         try:
             est_id, item_id = produto_composto.split('|', 1)
@@ -120,7 +155,7 @@ def registrar():
                     if val: nome_parts.append(str(val))
                     
             if not campo_qtd:
-                flash('Erro: Esta estrutura não tem uma coluna de Número para dar baixa!', 'danger')
+                flash('Erro: Esta estrutura não tem uma coluna de Número para abater o estoque!', 'danger')
                 return redirect('/')
                 
             estoque_prod = int(item_data.get(campo_qtd, 0))
@@ -128,9 +163,9 @@ def registrar():
                 flash(f'Bloqueado: Há apenas {estoque_prod} unidades deste item em estoque.', 'danger')
                 return redirect('/')
                 
-            # Atualiza no banco
             item_ref.update({campo_qtd: estoque_prod - toners})
             produto_nome_historico = f"[{estrutura_data.get('nome')}] " + " - ".join(nome_parts)
+            novo_detalhe = f"{toners}x {produto_nome_historico}"
             
         except Exception as e:
             flash(f'Erro ao processar item: {str(e)}', 'danger')
@@ -140,49 +175,62 @@ def registrar():
         flash('Bloqueado: Você informou a quantidade, mas não selecionou o Produto na lista!', 'warning')
         return redirect('/')
     
-    # Tratamento de Datas
     data_obj = datetime.strptime(data_input, '%Y-%m-%d') if data_input else datetime.now()
     dia_escolhido = data_obj.strftime('%d/%m/%Y')
     mes_ref_registro = data_obj.strftime('%m/%Y')
     
     envios_ref = db.reference('envios')
-    todos_envios = envios_ref.get() or {}
-    
-    registro_existente_id = None
-    registro_existente_dados = None
-    for key, val in todos_envios.items():
-        if val.get('local') == local and val.get('mes_ref') == mes_ref_registro:
-            registro_existente_id = key
-            registro_existente_dados = val
-            break
-            
-    media_final = int(media_input) if media_input and media_input.strip() else int(registro_existente_dados.get('media_aplicada', 5000)) if registro_existente_dados else 5000
-            
+    media_final = int(media_input) if media_input and media_input.strip() else 5000
     estoque_ref.update({'folhas': qtd_estoque_folhas - folhas})
             
-    if registro_existente_id:
-        folhas_antigas = int(registro_existente_dados.get('folhas', 0))
-        toners_antigos = int(registro_existente_dados.get('toners', 0))
-        datas_antigas = str(registro_existente_dados.get('data', ''))
-        nova_data = f"{datas_antigas}, {dia_escolhido}" if dia_escolhido not in datas_antigas else datas_antigas
+    envios_ref.push({
+        'local': local, 
+        'folhas': folhas, 
+        'toners': toners,
+        'produto_composto': produto_composto,
+        'produto_nome': produto_nome_historico,
+        'detalhes_produtos': novo_detalhe,
+        'media_aplicada': media_final, 
+        'data': dia_escolhido, 
+        'mes_ref': mes_ref_registro
+    })
+    flash('Sucesso: Saída de insumos registrada com sucesso!', 'success')
         
-        envios_ref.child(registro_existente_id).update({
-            'folhas': folhas_antigas + folhas, 
-            'toners': toners_antigos + toners,
-            'produto_composto': produto_composto,
-            'produto_nome': produto_nome_historico,
-            'media_aplicada': media_final, 'data': nova_data
-        })
-        flash('Sucesso: Entrega registrada e baixada do estoque!', 'success')
-    else:
-        envios_ref.push({
-            'local': local, 'folhas': folhas, 'toners': toners,
-            'produto_composto': produto_composto,
-            'produto_nome': produto_nome_historico,
-            'media_aplicada': media_final, 'data': dia_escolhido, 'mes_ref': mes_ref_registro
-        })
-        flash('Sucesso: Primeira entrega do mês registrada!', 'success')
+    return redirect('/')
+
+@envios_bp.route('/adicionar_estoque', methods=['POST'])
+def adicionar_estoque():
+    tipo = request.form.get('tipo_material')
+    quantidade = int(request.form.get('quantidade_material', 0))
+    estoque_ref = db.reference('estoque')
+    estoque_atual = estoque_ref.get() or {'folhas': 0, 'toners': 0}
+    
+    if tipo == 'caixa_papel':
+        estoque_ref.update({'folhas': int(estoque_atual.get('folhas', 0)) + (quantidade * 5000)})
+    elif tipo == 'resma_papel':
+        estoque_ref.update({'folhas': int(estoque_atual.get('folhas', 0)) + (quantidade * 500)})
         
+    flash(f'Estoque de papel atualizado com sucesso!', 'success')
+    return redirect('/')
+
+@envios_bp.route('/editar_estoque', methods=['POST'])
+def editar_estoque():
+    def limpar_numero(valor):
+        if not valor: return 0
+        valor_str = str(valor).strip().replace('.', '').replace(',', '.')
+        try:
+            return int(float(valor_str))
+        except ValueError:
+            return 0
+
+    estoque_atual = db.reference('estoque').get() or {'folhas': 0, 'toners': 0}
+    dados = {
+        'folhas': limpar_numero(request.form.get('folhas_corretas')),
+        'toners': estoque_atual.get('toners', 0)
+    }
+    
+    db.reference('estoque').update(dados)
+    flash('Sucesso: O valor total de folhas foi corrigido!', 'success')
     return redirect('/')
 
 @envios_bp.route('/deletar/<id>')
@@ -192,7 +240,6 @@ def deletar(id):
         estoque_atual = db.reference('estoque').get() or {'folhas': 0, 'toners': 0}
         db.reference('estoque').update({'folhas': int(estoque_atual.get('folhas', 0)) + int(registro.get('folhas', 0))})
         
-        # Devolve o insumo para a estrutura dinâmica, se existir
         produto_composto = registro.get('produto_composto')
         toners_devolver = int(registro.get('toners', 0))
         
