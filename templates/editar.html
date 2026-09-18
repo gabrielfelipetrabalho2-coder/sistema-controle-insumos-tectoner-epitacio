@@ -1,59 +1,78 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+{% extends 'base.html' %}
+{% block titulo_pagina %}Editar Registro{% endblock %}
 
-<head>
-    <meta charset="UTF-8">
-    <title>Editar Totalização Mensal</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} fw-bold"
+            role="alert">{{ message }}</div>{% endfor %}{% endif %}
+        {% endwith %}
 
-<body class="container mt-5">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white fw-bold fs-5">
+                ✏️ Editar Entrega - {{ registro.local }}
+            </div>
+            <div class="card-body bg-light">
+                <form action="/editar/{{ id }}" method="POST">
 
-    <h2 class="mb-4">Editar Totais do Mês: {{ registro.local }}</h2>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="fw-bold text-primary">Data da Entrega:</label>
+                            <input type="date" name="data" class="form-control" value="{{ data_formatada }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="fw-bold text-primary">Nova Média (Opcional):</label>
+                            <input type="number" name="media" class="form-control"
+                                placeholder="Média atual: {{ registro.media_aplicada }}">
+                            <small class="text-muted">Deixe em branco para manter.</small>
+                        </div>
+                    </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="alert alert-{{ category }} fw-bold" role="alert">
-        {{ message }}
+                    <div class="mb-4">
+                        <label class="fw-bold text-primary">Folhas Entregues:</label>
+                        <input type="number" name="folhas" class="form-control" value="{{ registro.folhas }}" min="0"
+                            step="500">
+                    </div>
+
+                    <!-- Caixa de Edição de Produtos IDÊNTICA a da Tela Inicial -->
+                    <div class="border rounded p-3 mb-4"
+                        style="background-color: #f8f9fa; border-color: #ced4da !important;">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-box-open text-primary"></i> Produtos
+                            Adicionais (Toner, Cilindro, etc)</h6>
+                        <div class="row g-2">
+                            <div class="col-md-8">
+                                <label class="fw-bold mb-1 text-dark" style="font-size: 0.85em;">Substituir/Adicionar
+                                    Produto:</label>
+                                <select name="produto_id" class="form-select select2">
+                                    <option value="">Nenhum (Só Papel)</option>
+                                    {% for prod in produtos %}
+                                    <option value="{{ prod.id }}" {% if registro.produto_composto==prod.id %}selected{%
+                                        endif %}>
+                                        {{ prod.nome }} (Estoque atual: {{ prod.estoque }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="fw-bold mb-1 text-dark" style="font-size: 0.85em;">Nova
+                                    Quantidade:</label>
+                                <input type="number" name="toners" class="form-control"
+                                    value="{{ registro.toners|default(0) }}" min="0">
+                            </div>
+                        </div>
+                        <small class="text-danger mt-2 d-block">O sistema recalcula automaticamente o estoque ao trocar
+                            a quantidade ou o produto!</small>
+                    </div>
+
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <a href="/" class="btn btn-secondary">⬅️ Cancelar e Voltar</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
-
-    <div class="alert alert-warning mb-4 w-50">
-        <strong>📦 Limite de Edição:</strong>
-        O sistema bloqueia automaticamente valores acima do estoque disponível.
-        <br>Estoque restante de Folhas: <strong>{{ estoque.folhas }}</strong>
-        <br>Estoque restante de Toners: <strong>{{ estoque.toners }}</strong>
-    </div>
-
-    <form action="/editar/{{ id }}" method="POST" class="border p-4 rounded bg-light w-50">
-        <div class="mb-3">
-            <label class="fw-bold">Histórico de Dias (Ex: 05/09, 12/09):</label>
-            <input type="text" name="datas_historico" class="form-control" value="{{ registro.data }}" required>
-        </div>
-        <div class="mb-3">
-            <label class="fw-bold">Corrigir Média de Referência Mensal:</label>
-            <input type="number" name="media" class="form-control" value="{{ registro.media_aplicada }}" required
-                min="1">
-        </div>
-        <div class="mb-3">
-            <label class="fw-bold text-primary">Corrigir SOMA TOTAL de Folhas:</label>
-            <!-- TRAVA DO HTML AQUI (min e max) -->
-            <input type="number" name="folhas" class="form-control border-primary" value="{{ registro.folhas }}"
-                required min="0" max="{{ registro.folhas + estoque.folhas }}">
-        </div>
-        <div class="mb-4">
-            <label class="fw-bold text-danger">Corrigir SOMA TOTAL de Toners:</label>
-            <!-- TRAVA DO HTML AQUI (min e max) -->
-            <input type="number" name="toners" class="form-control border-danger" value="{{ registro.toners }}" required
-                min="0" max="{{ registro.toners + estoque.toners }}">
-        </div>
-        <button type="submit" class="btn btn-success fw-bold">Salvar Alterações</button>
-        <a href="/" class="btn btn-secondary ms-2">Cancelar</a>
-    </form>
-
-</body>
-
-</html>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block titulo_pagina %}Relatórios Visuais{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h2>📊 Relatórios e Gráficos de <span class="text-primary">{{ mes_atual }}</span></h2>
+        <a href="/" class="btn btn-outline-secondary">⬅️ Voltar ao Início</a>
+    </div>
+
+    <!-- Gráficos um abaixo do outro -->
+    <div class="row justify-content-center">
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-info">
+                <div class="card-header bg-info text-dark fw-bold fs-5">
+                    Consumo de Papel (Folhas)
+                </div>
+                <!-- MÁGICA DEFINITIVA: A "Jaula Absoluta". A caixa de fora trava a altura real da página. -->
+                <div class="card-body bg-light" style="position: relative; height: 380px;">
+                    <!-- A caixa de dentro flutua e isola o gráfico, impedindo que ele puxe a tela -->
+                    <div style="position: absolute; top: 15px; left: 15px; right: 15px; bottom: 15px;">
+                        <canvas id="graficoFolhas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark fw-bold fs-5">
+                    Saída de Produtos (Unidades)
+                </div>
+                <!-- MÁGICA DEFINITIVA: A "Jaula Absoluta". -->
+                <div class="card-body bg-light" style="position: relative; height: 380px;">
+                    <!-- A caixa de dentro flutua e isola o gráfico, impedindo que ele puxe a tela -->
+                    <div style="position: absolute; top: 15px; left: 15px; right: 15px; bottom: 15px;">
+                        <canvas id="graficoProdutos"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Importa a biblioteca mágica de gráficos (Chart.js) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const locais = {{ locais | tojson }};
+    const folhas = {{ folhas | tojson }};
+    const produtos = {{ produtos | tojson }};
+
+    // Gráfico Azul para Papel
+    new Chart(document.getElementById('graficoFolhas'), {
+        type: 'bar',
+        data: {
+            labels: locais,
+            datasets: [{
+                label: 'Total de Folhas',
+                data: folhas,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // Força a respeitar a jaula invisível
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { display: false } },
+            animation: { duration: 500 } // Deixa a animação mais leve durante o resize
+        }
+    });
+
+    // Gráfico Amarelo/Vermelho para Produtos Dinâmicos
+    new Chart(document.getElementById('graficoProdutos'), {
+        type: 'bar',
+        data: {
+            labels: locais,
+            datasets: [{
+                label: 'Total de Produtos',
+                data: produtos,
+                backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                borderColor: 'rgba(255, 159, 64, 1)',
+                borderWidth: 2,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // Força a respeitar a jaula invisível
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { display: false } },
+            animation: { duration: 500 }
+        }
+    });
+</script>
+{% endblock %}
