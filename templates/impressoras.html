@@ -2,110 +2,245 @@
 
 {% block titulo_pagina %}Gestão de Impressoras{% endblock %}
 
+{% block extra_css %}
+<style>
+    .ordenavel {
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.2s;
+    }
+
+    .ordenavel:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<div class="alert alert-{{ category }} fw-bold" role="alert">
-    {{ message }}
-</div>
-{% endfor %}
-{% endif %}
-{% endwith %}
+<div class="container-fluid">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} fw-bold"
+        role="alert">{{ message }}</div>{% endfor %}{% endif %}
+    {% endwith %}
 
-<div class="row mb-4">
-    <!-- Formulário de Cadastro -->
-    <div class="col-md-4">
-        <div class="card shadow-sm border-dark">
-            <div class="card-header bg-dark text-white fw-bold">
-                🖨️ Cadastrar Nova Máquina
+    <div class="row mb-4">
+        <!-- Formulário de Cadastro -->
+        <div class="col-lg-3 col-md-4">
+            <div class="card shadow-sm border-dark">
+                <div class="card-header bg-dark text-white fw-bold">
+                    🖨️ Nova Máquina / Manutenção
+                </div>
+                <div class="card-body bg-light">
+                    <form action="/impressoras/nova" method="POST">
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Data</label>
+                            <input type="date" name="data_registro" class="form-control form-control-sm"
+                                value="{{ data_hoje }}" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Setor / Local</label>
+                            <input type="text" name="setor" class="form-control form-control-sm"
+                                placeholder="Ex: Assistência Social" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Marca / Modelo</label>
+                            <input type="text" name="modelo" class="form-control form-control-sm"
+                                placeholder="Ex: EPSON L3250" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Status do Equipamento</label>
+                            <select name="status" id="statusSelect" class="form-select form-select-sm"
+                                onchange="verificarStatusTrocada()">
+                                <option value="Em manutenção na TecToner">🔴 Em manutenção na TecToner</option>
+                                <option value="Em manutenção no setor">🟡 Em manutenção no setor</option>
+                                <option value="Para instalar">🔵 Para instalar</option>
+                                <option value="Instaladas">🟢 Instaladas</option>
+                                <option value="Trocadas">🔄 Trocadas</option>
+                                <option value="Condenadas (Sem Conserto)">⚫ Condenadas (Sem Conserto)</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos dinâmicos de Serial -->
+                        <div id="blocoSerialUnico" class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Serial da Máquina</label>
+                            <input type="text" name="numero_serie" id="numero_serie"
+                                class="form-control form-control-sm">
+                        </div>
+
+                        <div id="blocoSerialTroca" class="mb-2"
+                            style="display: none; background-color: #e9ecef; padding: 10px; border-radius: 5px;">
+                            <label class="form-label text-danger fw-bold small mb-1">Serial Antigo (Que saiu)</label>
+                            <input type="text" name="serial_antigo" id="serial_antigo"
+                                class="form-control form-control-sm mb-2">
+                            <label class="form-label text-success fw-bold small mb-1">Serial Novo (Que entrou)</label>
+                            <input type="text" name="serial_novo" id="serial_novo" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Prioridade</label>
+                            <select name="prioridade" class="form-select form-select-sm">
+                                <option value="Normal">Normal</option>
+                                <option value="Alta">Alta ⚠️</option>
+                                <option value="Baixa">Baixa</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label text-secondary fw-bold small mb-1">Motivo / Observação</label>
+                            <textarea name="motivo" class="form-control form-control-sm" rows="2"
+                                placeholder="Defeito relatado..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-secondary fw-bold small mb-1">Páginas (Opcional)</label>
+                            <input type="number" name="contador_paginas" class="form-control form-control-sm" value="0">
+                        </div>
+
+                        <button type="submit" class="btn btn-dark w-100 fw-bold btn-sm">Salvar Impressora</button>
+                    </form>
+                </div>
             </div>
-            <div class="card-body bg-light">
-                <form action="/impressoras/nova" method="POST">
-                    <div class="mb-2">
-                        <label class="form-label text-secondary fw-bold small mb-1">Modelo</label>
-                        <input type="text" name="modelo" class="form-control form-control-sm"
-                            placeholder="Ex: Ricoh MP 301, Lexmark..." required>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label text-secondary fw-bold small mb-1">Número de Série</label>
-                        <input type="text" name="numero_serie" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label text-secondary fw-bold small mb-1">Setor / Local</label>
-                        <input type="text" name="setor" class="form-control form-control-sm"
-                            placeholder="Ex: RH, Saúde, Escola X..." required>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label text-secondary fw-bold small mb-1">Contador de Páginas</label>
-                        <input type="number" name="contador_paginas" class="form-control form-control-sm"
-                            placeholder="Ex: 154200" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-secondary fw-bold small mb-1">Status de Rede/Comunicação</label>
-                        <select name="status" class="form-select form-select-sm">
-                            <option value="Comunicando">🟢 Comunicando (Ativa)</option>
-                            <option value="Sem Comunicação">🔴 Sem Comunicação (Inativa)</option>
-                            <option value="Manutenção">🟡 Em Manutenção</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-dark w-100 fw-bold btn-sm">Salvar Impressora</button>
-                </form>
+        </div>
+
+        <!-- Tabela de Impressoras -->
+        <div class="col-lg-9 col-md-8">
+            <div class="card shadow-sm border-secondary">
+                <div class="card-header bg-secondary text-white fw-bold">
+                    📋 Parque e Fila de Manutenção
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover table-striped mb-0 text-center" id="tabelaImpressoras">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ordenavel" onclick="ordenarTabela('tabelaImpressoras', 0, 'data')">Data <i
+                                        class="fa-solid fa-sort ms-1 text-secondary"></i></th>
+                                <th class="ordenavel" onclick="ordenarTabela('tabelaImpressoras', 1, 'texto')">Setor <i
+                                        class="fa-solid fa-sort ms-1 text-secondary"></i></th>
+                                <th class="ordenavel" onclick="ordenarTabela('tabelaImpressoras', 2, 'texto')">Modelo <i
+                                        class="fa-solid fa-sort ms-1 text-secondary"></i></th>
+                                <th>Serial</th>
+                                <th class="ordenavel" onclick="ordenarTabela('tabelaImpressoras', 4, 'texto')">Status <i
+                                        class="fa-solid fa-sort ms-1 text-secondary"></i></th>
+                                <th class="ordenavel" onclick="ordenarTabela('tabelaImpressoras', 5, 'texto')">
+                                    Prioridade <i class="fa-solid fa-sort ms-1 text-secondary"></i></th>
+                                <th>Motivo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for imp in impressoras %}
+                            <tr>
+                                <td class="align-middle fw-bold small">
+                                    {% if imp.data_registro %}{{ imp.data_registro[8:10] }}/{{ imp.data_registro[5:7]
+                                    }}/{{ imp.data_registro[0:4] }}{% endif %}
+                                </td>
+                                <td class="align-middle fw-bold text-primary">{{ imp.setor }}</td>
+                                <td class="align-middle fw-bold">{{ imp.modelo }}</td>
+                                <td class="align-middle small">
+                                    {% if imp.status == 'Trocadas' %}
+                                    <span class="text-danger d-block">Antigo: {{ imp.serial_antigo }}</span>
+                                    <span class="text-success d-block">Novo: {{ imp.serial_novo }}</span>
+                                    {% else %}
+                                    {{ imp.numero_serie }}
+                                    {% endif %}
+                                </td>
+                                <td class="align-middle">
+                                    {% if imp.status == 'Instaladas' %}
+                                    <span class="badge bg-success">Instalada</span>
+                                    {% elif imp.status == 'Em manutenção na TecToner' %}
+                                    <span class="badge bg-danger">Na TecToner</span>
+                                    {% elif imp.status == 'Em manutenção no setor' %}
+                                    <span class="badge bg-warning text-dark">No Setor</span>
+                                    {% elif imp.status == 'Para instalar' %}
+                                    <span class="badge bg-primary">Para Instalar</span>
+                                    {% elif imp.status == 'Trocadas' %}
+                                    <span class="badge bg-info text-dark">Trocada</span>
+                                    {% elif imp.status == 'Condenadas (Sem Conserto)' %}
+                                    <span class="badge bg-dark">Condenada</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ imp.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="align-middle">
+                                    {% if imp.prioridade == 'Alta' %}<span class="text-danger fw-bold">Alta ⚠️</span>
+                                    {% elif imp.prioridade == 'Baixa' %}<span class="text-muted">Baixa</span>
+                                    {% else %}Normal{% endif %}
+                                </td>
+                                <td class="align-middle small text-start"
+                                    style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                    title="{{ imp.motivo }}">
+                                    {{ imp.motivo }}
+                                </td>
+                                <td class="align-middle">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <a href="/impressoras/editar/{{ imp.id }}" class="btn btn-sm btn-primary"
+                                            title="Editar Status"><i class="fa-solid fa-pen"></i></a>
+                                        <a href="/impressoras/deletar/{{ imp.id }}" class="btn btn-sm btn-danger"
+                                            onclick="return confirm('Apagar registro desta impressora?');"><i
+                                                class="fa-solid fa-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4 fw-bold">Nenhuma impressora na fila
+                                    de gestão.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- Tabela de Impressoras -->
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-header bg-secondary text-white fw-bold">
-                📋 Parque de Impressoras
-            </div>
-            <div class="card-body p-0 table-responsive">
-                <table class="table table-hover table-striped mb-0 text-center">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Setor</th>
-                            <th>Modelo</th>
-                            <th>Nº de Série</th>
-                            <th>Páginas</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for imp in impressoras %}
-                        <tr>
-                            <td class="align-middle fw-bold text-primary">{{ imp.setor }}</td>
-                            <td class="align-middle">{{ imp.modelo }}</td>
-                            <td class="align-middle text-muted small">{{ imp.numero_serie }}</td>
-                            <td class="align-middle fw-bold">{{ imp.contador_paginas }}</td>
-                            <td class="align-middle">
-                                {% if imp.status == 'Comunicando' %}
-                                <span class="badge bg-success">Ativa</span>
-                                {% elif imp.status == 'Manutenção' %}
-                                <span class="badge bg-warning text-dark">Manutenção</span>
-                                {% else %}
-                                <span class="badge bg-danger">Inativa</span>
-                                {% endif %}
-                            </td>
-                            <td class="align-middle">
-                                <a href="/impressoras/deletar/{{ imp.id }}" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Apagar o registro desta impressora?');">
-                                    <i class="fa-solid fa-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Nenhuma impressora cadastrada no parque.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function verificarStatusTrocada() {
+        var status = document.getElementById('statusSelect').value;
+        var blocoUnico = document.getElementById('blocoSerialUnico');
+        var blocoTroca = document.getElementById('blocoSerialTroca');
+
+        if (status === 'Trocadas') {
+            blocoUnico.style.display = 'none';
+            blocoTroca.style.display = 'block';
+        } else {
+            blocoUnico.style.display = 'block';
+            blocoTroca.style.display = 'none';
+        }
+    }
+
+    window.onload = verificarStatusTrocada;
+
+    function ordenarTabela(idTabela, colunaIndex, tipo) {
+        const tabela = document.getElementById(idTabela);
+        const tbody = tabela.querySelector("tbody");
+        const linhas = Array.from(tbody.querySelectorAll("tr"));
+        const thClicado = tabela.querySelectorAll("thead th")[colunaIndex];
+
+        const direcaoAtual = thClicado.getAttribute("data-dir") === "asc" ? "desc" : "asc";
+        tabela.querySelectorAll("thead th").forEach(th => th.setAttribute("data-dir", ""));
+        thClicado.setAttribute("data-dir", direcaoAtual);
+
+        if (linhas.length === 1 && linhas[0].cells.length === 1) return;
+
+        linhas.sort((a, b) => {
+            let valorA = a.querySelectorAll("td")[colunaIndex].innerText.trim();
+            let valorB = b.querySelectorAll("td")[colunaIndex].innerText.trim();
+
+            if (tipo === 'data') {
+                let partesA = valorA.split('/'); let partesB = valorB.split('/');
+                if (partesA.length === 3 && partesB.length === 3) {
+                    let dataA = new Date(partesA[2], partesA[1] - 1, partesA[0]);
+                    let dataB = new Date(partesB[2], partesB[1] - 1, partesB[0]);
+                    return direcaoAtual === "asc" ? dataA - dataB : dataB - dataA;
+                }
+            }
+            return direcaoAtual === "asc" ? valorA.localeCompare(valorB) : valorB.localeCompare(valorA);
+        });
+
+        linhas.forEach(linha => tbody.appendChild(linha));
+    }
+</script>
 {% endblock %}

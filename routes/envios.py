@@ -13,15 +13,36 @@ def index():
     lista_locais = [{'id': k, 'nome': v.get('nome', ''), 'removivel': v.get('removivel', False)} for k, v in locais_ref.items()]
     lista_locais = sorted(lista_locais, key=lambda x: x['nome'])
     
-    historico_mes = []
-    mes_atual = datetime.now().strftime('%m/%Y')
+    mes_sistema = datetime.now().strftime('%m/%Y')
+    data_hoje_input = datetime.now().strftime('%Y-%m-%d')
     
+    # --- NOVIDADE: CRIADOR DO FILTRO DE MESES ---
+    meses_set = set()
+    meses_set.add(mes_sistema) # Garante que o mês atual sempre apareça
+    for key, val in envios_ref.items():
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_sistema)
+        meses_set.add(registro_mes)
+        
+    def sort_month(m):
+        parts = m.split('/')
+        return parts[1] + parts[0] if len(parts) == 2 else m
+        
+    meses_disponiveis = sorted(list(meses_set), key=sort_month, reverse=True)
+    
+    # Verifica qual mês o usuário selecionou no Dropdown
+    mes_atual = request.args.get('mes')
+    if not mes_atual or mes_atual not in meses_disponiveis:
+        mes_atual = mes_sistema
+        
+    historico_mes = []
     totais_folhas = {}
     totais_produtos = {}
     medias_locais = {}
     
+    # Constrói o Resumo e o Extrato EXCLUSIVAMENTE para o mês selecionado
     for key, val in envios_ref.items():
-        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_atual)
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_sistema)
+        
         if registro_mes == mes_atual:
             local_nome = val.get('local')
             totais_folhas[local_nome] = totais_folhas.get(local_nome, 0) + int(val.get('folhas', 0))
@@ -46,7 +67,7 @@ def index():
     
     for key, val in envios_ref.items():
         val['id'] = key
-        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_atual)
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_sistema)
                 
         if registro_mes == mes_atual:
             local_nome = val.get('local')
@@ -78,10 +99,8 @@ def index():
                     if attr['tipo'] == 'text' and val:
                         nome_parts.append(str(val))
                     elif attr['tipo'] == 'number' and quantidade == 0:
-                        try:
-                            quantidade = int(val)
-                        except:
-                            quantidade = 0
+                        try: quantidade = int(val)
+                        except: quantidade = 0
                 
                 nome_final = " - ".join(nome_parts) if nome_parts else f"Item {item_id[-4:]}"
                 lista_produtos.append({
@@ -92,18 +111,37 @@ def index():
     
     return render_template('index.html', locais=lista_locais, historico=historico_mes, 
                            mes_atual=mes_atual, estoque=estoque_ref, produtos=lista_produtos,
-                           resumo_locais=resumo_locais)
+                           resumo_locais=resumo_locais, meses_disponiveis=meses_disponiveis, data_hoje=data_hoje_input)
 
 @envios_bp.route('/graficos')
 def graficos():
     envios_ref = db.reference('envios').get() or {}
-    mes_atual = datetime.now().strftime('%m/%Y')
+    mes_sistema = datetime.now().strftime('%m/%Y')
+    
+    # --- MÁQUINA DO TEMPO: Pega todos os meses existentes ---
+    meses_set = set()
+    meses_set.add(mes_sistema)
+    for key, val in envios_ref.items():
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_sistema)
+        meses_set.add(registro_mes)
+        
+    def sort_month(m):
+        parts = m.split('/')
+        return parts[1] + parts[0] if len(parts) == 2 else m
+        
+    meses_disponiveis = sorted(list(meses_set), key=sort_month, reverse=True)
+    
+    # Verifica qual mês o usuário escolheu no dropdown da tela de gráficos
+    mes_atual = request.args.get('mes')
+    if not mes_atual or mes_atual not in meses_disponiveis:
+        mes_atual = mes_sistema
     
     dados_grafico = {}
     dados_grafico_toner = {}
     
+    # Filtra os dados apenas para o mês selecionado
     for key, val in envios_ref.items():
-        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_atual)
+        registro_mes = val.get('mes_ref') or (val.get('data', '')[3:10] if len(val.get('data', '')) >= 10 else mes_sistema)
         if registro_mes == mes_atual:
             local_nome = val.get('local')
             dados_grafico[local_nome] = dados_grafico.get(local_nome, 0) + int(val.get('folhas', 0))
@@ -115,7 +153,7 @@ def graficos():
     folhas_data = [dados_grafico.get(loc, 0) for loc in locais]
     produtos_data = [dados_grafico_toner.get(loc, 0) for loc in locais]
     
-    return render_template('graficos.html', locais=locais, folhas=folhas_data, produtos=produtos_data, mes_atual=mes_atual)
+    return render_template('graficos.html', locais=locais, folhas=folhas_data, produtos=produtos_data, mes_atual=mes_atual, meses_disponiveis=meses_disponiveis)
 
 @envios_bp.route('/registrar', methods=['POST'])
 def registrar():
@@ -260,7 +298,6 @@ def editar(id):
         return redirect('/')
         
     if request.method == 'POST':
-        # 1. PEGAR OS DADOS DA TELA
         media_input = request.form.get('media')
         media = int(media_input) if media_input and media_input.strip() else int(registro_antigo.get('media_aplicada', 5000))
             
@@ -276,7 +313,6 @@ def editar(id):
         toners_novos = int(toners_novos_str) if toners_novos_str and toners_novos_str.strip() else 0
         prod_comp_novo = request.form.get('produto_id', "")
         
-        # 2. VALIDAÇÃO DE PAPEL
         folhas_antigas = int(registro_antigo.get('folhas', 0))
         estoque_ref = db.reference('estoque')
         estoque_atual = estoque_ref.get() or {'folhas': 0}
@@ -287,7 +323,6 @@ def editar(id):
             flash('Bloqueado: Saldo insuficiente de folhas para correção.', 'danger')
             return redirect(f'/editar/{id}')
             
-        # 3. VALIDAÇÃO DE PRODUTO DINÂMICO
         toners_antigos = int(registro_antigo.get('toners', 0))
         prod_comp_antigo = registro_antigo.get('produto_composto', "")
         
@@ -308,7 +343,6 @@ def editar(id):
                 if campo_qtd_novo and item_data_novo:
                     estoque_prod_novo = int(item_data_novo.get(campo_qtd_novo, 0))
                 
-                # Checa se o estoque dá conta
                 necessidade = toners_novos
                 if prod_comp_novo == prod_comp_antigo:
                     necessidade = toners_novos - toners_antigos
@@ -324,10 +358,8 @@ def editar(id):
                 flash('Erro ao ler produto dinâmico.', 'danger')
                 return redirect(f'/editar/{id}')
 
-        # 4. APLICA AS ALTERAÇÕES DE FATO
         estoque_ref.update({'folhas': qtd_estoque_folhas - diferenca_folhas})
         
-        # Devolve o item antigo pro estoque (se mudou de produto ou zerou)
         if prod_comp_antigo and toners_antigos > 0 and prod_comp_antigo != prod_comp_novo:
             try:
                 e_id, i_id = prod_comp_antigo.split('|', 1)
@@ -339,27 +371,20 @@ def editar(id):
                     i_ref.update({c_qtd: int(i_data.get(c_qtd, 0)) + toners_antigos})
             except: pass
                 
-        # Abate do estoque do item novo
         if prod_comp_novo and toners_novos > 0 and item_ref_novo and campo_qtd_novo:
             if prod_comp_novo == prod_comp_antigo:
-                # Se for o mesmo produto, só faz a diferença
                 item_ref_novo.update({campo_qtd_novo: estoque_prod_novo - (toners_novos - toners_antigos)})
             else:
                 item_ref_novo.update({campo_qtd_novo: estoque_prod_novo - toners_novos})
                 
         db.reference('envios').child(id).update({
-            'media_aplicada': media, 
-            'folhas': novas_folhas, 
-            'data': nova_data,
-            'toners': toners_novos,
-            'produto_composto': prod_comp_novo,
-            'produto_nome': nome_historico_novo,
-            'detalhes_produtos': detalhes_produtos_novo
+            'media_aplicada': media, 'folhas': novas_folhas, 'data': nova_data,
+            'toners': toners_novos, 'produto_composto': prod_comp_novo,
+            'produto_nome': nome_historico_novo, 'detalhes_produtos': detalhes_produtos_novo
         })
         flash('Entrega corrigida e estoque atualizado com sucesso!', 'success')
         return redirect('/')
     else:
-        # GET - Tela de carregamento
         data_formatada = ""
         data_orig = registro_antigo.get('data', '')
         if '/' in data_orig:

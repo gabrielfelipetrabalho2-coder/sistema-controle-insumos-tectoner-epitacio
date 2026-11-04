@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block titulo_pagina %}Editar Impressora{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white fw-bold fs-5">
+                ✏️ Editar Status da Máquina - {{ registro.modelo }}
+            </div>
+            <div class="card-body bg-light">
+                <form action="/impressoras/editar/{{ id }}" method="POST">
+
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary fw-bold small mb-1">Data</label>
+                            <input type="date" name="data_registro" class="form-control"
+                                value="{{ registro.data_registro }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary fw-bold small mb-1">Setor / Local</label>
+                            <input type="text" name="setor" class="form-control" value="{{ registro.setor }}" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary fw-bold small mb-1">Marca / Modelo</label>
+                            <input type="text" name="modelo" class="form-control" value="{{ registro.modelo }}"
+                                required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-secondary fw-bold small mb-1">Prioridade</label>
+                            <select name="prioridade" class="form-select">
+                                <option value="Normal" {% if registro.prioridade=='Normal' %}selected{% endif %}>Normal
+                                </option>
+                                <option value="Alta" {% if registro.prioridade=='Alta' %}selected{% endif %}>Alta ⚠️
+                                </option>
+                                <option value="Baixa" {% if registro.prioridade=='Baixa' %}selected{% endif %}>Baixa
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold small mb-1">Status do Equipamento</label>
+                        <select name="status" id="statusSelect" class="form-select fw-bold"
+                            onchange="verificarStatusTrocada()">
+                            <option value="Em manutenção na TecToner" {% if registro.status=='Em manutenção na TecToner'
+                                %}selected{% endif %}>🔴 Em manutenção na TecToner</option>
+                            <option value="Em manutenção no setor" {% if registro.status=='Em manutenção no setor'
+                                %}selected{% endif %}>🟡 Em manutenção no setor</option>
+                            <option value="Para instalar" {% if registro.status=='Para instalar' %}selected{% endif %}>
+                                🔵 Para instalar</option>
+                            <option value="Instaladas" {% if registro.status=='Instaladas' %}selected{% endif %}>🟢
+                                Instaladas</option>
+                            <option value="Trocadas" {% if registro.status=='Trocadas' %}selected{% endif %}>🔄 Trocadas
+                            </option>
+                            <option value="Condenadas (Sem Conserto)" {% if registro.status=='Condenadas (Sem Conserto)'
+                                %}selected{% endif %}>⚫ Condenadas (Sem Conserto)</option>
+                        </select>
+                    </div>
+
+                    <!-- Campos dinâmicos de Serial -->
+                    <div id="blocoSerialUnico" class="mb-3 p-3 border rounded bg-white">
+                        <label class="form-label text-secondary fw-bold small mb-1">Serial da Máquina</label>
+                        <input type="text" name="numero_serie" class="form-control" value="{{ registro.numero_serie }}">
+                    </div>
+
+                    <div id="blocoSerialTroca" class="mb-3 p-3 border rounded"
+                        style="display: none; background-color: #e9ecef;">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-right-left text-primary"></i> Registro
+                            de Troca de Máquina</h6>
+                        <label class="form-label text-danger fw-bold small mb-1">Serial Antigo (Que saiu)</label>
+                        <input type="text" name="serial_antigo" class="form-control mb-2"
+                            value="{{ registro.serial_antigo }}">
+
+                        <label class="form-label text-success fw-bold small mb-1">Serial Novo (Que entrou)</label>
+                        <input type="text" name="serial_novo" class="form-control" value="{{ registro.serial_novo }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-bold small mb-1">Motivo / Observação</label>
+                        <textarea name="motivo" class="form-control" rows="2">{{ registro.motivo }}</textarea>
+                    </div>
+
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <a href="/impressoras" class="btn btn-secondary">⬅️ Cancelar</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function verificarStatusTrocada() {
+        var status = document.getElementById('statusSelect').value;
+        var blocoUnico = document.getElementById('blocoSerialUnico');
+        var blocoTroca = document.getElementById('blocoSerialTroca');
+
+        if (status === 'Trocadas') {
+            blocoUnico.style.display = 'none';
+            blocoTroca.style.display = 'block';
+        } else {
+            blocoUnico.style.display = 'block';
+            blocoTroca.style.display = 'none';
+        }
+    }
+
+    window.onload = verificarStatusTrocada;
+</script>
+{% endblock %}
