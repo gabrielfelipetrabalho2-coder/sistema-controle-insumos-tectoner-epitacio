@@ -33,4 +33,5 @@ app.register_blueprint(produtos_bp)
 app.register_blueprint(impressoras_bp)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # O host '0.0.0.0' avisa o sistema que ele pode aceitar visitas de outros PCs da rede
+    app.run(host='0.0.0.0', port=5000, debug=True)
